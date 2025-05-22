@@ -7,7 +7,22 @@ setInterval(() => {
         blurredBG.style.backgroundImage = blurredBG.style.backgroundImage.replace(/&name=tiny/g, '&name=small');
     }
 
-    /// 進入 `/status/\d+/video/\d+` 頁面時，直接觸發點擊。這個影片不會自動播放。
+    ///
+    /**
+     * 進入 `/status/\d+/video/\d+` 頁面時，直接觸發點擊。
+     * 只有同站換頁時才有效，直接開網頁仍（可能）會被瀏覽器擋下影片自動播放。
+     * `[data-testid=swipe-to-dismiss]` 初始只會載入自身和前一後一，故不可與 `index` 直接換算。
+     */
+    if (/^\/[^/]+\/status\/\d+\/video\/\d+$/.test(location.pathname)) {
+        const slides = document.querySelectorAll('[data-testid=swipe-to-dismiss]');
+        for (let i = 0; i < slides.length; ++i) {
+            const slide = slides[i];
+            if (slide.getBoundingClientRect().x) continue; // 不是當前的 slide
+            if (! slide.querySelector('video'))
+                slide.querySelector('button')?.click();
+            break;
+        }
+    }
 }, 100);
 
 /// 拿掉影片預覽圖的模糊效果
@@ -29,7 +44,7 @@ for (const sheet of document.styleSheets) {
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     switch (message) {
         case 'download':
-            const pathMatch = location.pathname.match(/^\/([^/]+)\/status\/(\d+)(?:\/([^/]+)\/(\d+))?/);
+            const pathMatch = location.pathname.match(/^\/([^/]+)\/status\/(\d+)(?:\/([^/]+)\/(\d+))?$/);
             if (! pathMatch) return console.warn("Not a valid tweet URL") && !1;
             const [, user, tweet, type, index] = pathMatch;
             const prefix = `x+${user}+${tweet}`;
@@ -40,8 +55,8 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     const targets = article.querySelectorAll('[data-testid=tweetPhoto] :is(video, img:not([src*=ext_tw_video_thumb]))');
                     const result = [];
                     for (let i = 0; i < targets.length; ++i) {
-                        const url = targets[i].src.replace(/&name=[^&]+/, '&name=large');
-                        const format = url.match(/[?&]format=([^&]+)/)?.[1];
+                        const url = targets[i].src.replace(/&name=[^&]+/, '&name=large'); // 改成 `orig` 似乎即為原圖，但我自己 large 就夠大了
+                        const format = url.match(/[?&]format=([^&]+)/)?.[1] || 'jpeg';
                         const filename = `${prefix}+${i + 1}.${format}`;
                         result.push({url, filename});
                     }
@@ -50,9 +65,27 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     return false;
                 }
                 case 'photo': {
+                    const slides = document.querySelectorAll('[data-testid=swipe-to-dismiss]');
+                    for (let i = 0; i < slides.length; ++i) {
+                        const slide = slides[i];
+                        if (slide.getBoundingClientRect().x) continue; // 不是當前的 slide
+                        const url = slide.querySelector('img').src.replace(/&name=[^&]+/, '&name=large');
+                        const format = url.match(/[?&]format=([^&]+)/)?.[1] || 'jpeg';
+                        const filename = `${prefix}+${index}.${format}`;
+                        sendResponse([{url, filename}]);
+                        return false;
+                    }
                     return false;
                 }
                 case 'video': {
+                    // const candidates = document.querySelectorAll('[data-testid=swipe-to-dismiss] :is(video, img)');
+                    // document.querySelectorAll('[data-testid="swipe-to-dismiss"] button')
+
+//                     aria-roledescription="carousel" li
+// [data-testid="videoPlayer"] video source.src (blbo dataURL)
+
+// if (img.src*="/ext_tw_video_thumb")
+// li button
                     return false;
                 }
                 default: return console.warn(`Unknown type: ${type}`) && !1;
