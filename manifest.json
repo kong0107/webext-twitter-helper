@@ -2,6 +2,10 @@
     "manifest_version": 3,
     "name": "Twitter Helper",
     "version": "0.1.3",
+    "permissions": [
+        "activeTab",
+        "downloads"
+    ],
     "content_scripts": [
         {
             "matches": ["https://x.com/*"],
